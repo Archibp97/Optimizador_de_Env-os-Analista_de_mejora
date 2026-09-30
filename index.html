@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Optimizador de envíos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --papel:#F4F5F2; --tinta:#18242B; --tinta-2:#51606A; --linea:#D3D8D3; --blanco:#FFFFFF;
+  --ruta:#1E6B52; --ruta-suave:#E1EFE8; --movido:#FBEFD0; --error:#A3302A; --error-suave:#F8E3E1;
+  --c-transprensa:#4E5BA6; --c-envia:#2A8C6E; --c-coordinadora:#D9731A;
+  --titulo:"Archivo", "Arial Narrow", Arial, sans-serif;
+  --texto:"IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--papel:#141B1F; --tinta:#E8ECE9; --tinta-2:#A2AEB4; --linea:#2F3A40; --blanco:#1B2429;
+    --ruta:#5CC39C; --ruta-suave:#1C3329; --movido:#3A3016; --error:#F09088; --error-suave:#3B1F1C}
+}
+:root[data-theme="dark"]{--papel:#141B1F; --tinta:#E8ECE9; --tinta-2:#A2AEB4; --linea:#2F3A40; --blanco:#1B2429;
+    --ruta:#5CC39C; --ruta-suave:#1C3329; --movido:#3A3016; --error:#F09088; --error-suave:#3B1F1C}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--papel)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.6 var(--texto);font-variant-numeric:tabular-nums}
+main{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+h1{font:800 clamp(34px,5vw,54px)/1.02 var(--titulo);letter-spacing:-.02em;margin:0 0 12px}
+h2{font:700 22px/1.2 var(--titulo);margin:48px 0 14px}
+p{margin:0 0 12px;max-width:68ch}
+.sub{color:var(--tinta-2);font-size:17px}
+a{color:var(--ruta)}
+button,.boton{font:500 15px var(--texto);color:var(--tinta);background:var(--blanco);border:1.5px solid var(--tinta);border-radius:6px;padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.boton:hover{background:var(--ruta-suave)}
+button.primario{background:var(--tinta);color:var(--papel)}
+button.primario:hover{background:var(--ruta);border-color:var(--ruta)}
+:focus-visible{outline:3px solid var(--ruta);outline-offset:2px}
+
+.guia{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:28px;margin-top:36px;align-items:start}
+@media (max-width:760px){.guia{grid-template-columns:1fr}}
+.etiqueta{position:relative;background:var(--blanco);border:2.5px solid var(--tinta);border-radius:10px;padding:26px 28px 24px;cursor:pointer;transition:background .15s}
+.etiqueta.sobre{background:var(--ruta-suave)}
+.etiqueta input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.ruta{display:flex;align-items:center;gap:14px;font:700 15px var(--titulo);letter-spacing:.01em;color:var(--tinta-2);margin-bottom:18px}
+.ruta .trazo{flex:1;border-top:2px dashed var(--linea);position:relative}
+.ruta .trazo::after{content:"";position:absolute;right:-2px;top:-6px;border:5px solid transparent;border-left:8px solid var(--linea)}
+.etiqueta strong{display:block;font:700 24px/1.2 var(--titulo);margin-bottom:6px}
+.etiqueta .archivo{margin-top:16px;font-weight:500;color:var(--ruta)}
+.barras{display:flex;gap:3px;height:34px;margin-top:20px}
+.barras i{display:block;background:var(--tinta);opacity:.85}
+.pasos{margin:0;padding:0;list-style:none;counter-reset:p}
+.pasos li{counter-increment:p;display:grid;grid-template-columns:30px 1fr;gap:10px;margin-bottom:14px;font-size:15px}
+.pasos li::before{content:counter(p);font:800 20px/1.3 var(--titulo);color:var(--ruta)}
+
+.aviso{border:1.5px solid var(--error);background:var(--error-suave);color:var(--error);border-radius:8px;padding:14px 18px;margin-top:24px}
+.aviso ul{margin:6px 0 0;padding-left:20px}
+.oculto{display:none}
+
+.ajustes{display:flex;flex-wrap:wrap;gap:18px 28px;align-items:end;background:var(--blanco);border:1px solid var(--linea);border-radius:10px;padding:18px 20px}
+.ajustes label{display:flex;flex-direction:column;font-size:14px;color:var(--tinta-2);gap:4px}
+.ajustes input[type=number]{font:500 16px var(--texto);color:var(--tinta);background:var(--papel);border:1px solid var(--linea);border-radius:6px;padding:7px 10px;width:150px}
+.ajustes .check{flex-direction:row;align-items:center;gap:8px;color:var(--tinta)}
+
+.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));border-top:2.5px solid var(--tinta);border-bottom:1px solid var(--linea);margin-top:28px}
+.cifras div{padding:16px 18px 18px 0}
+.cifras span{display:block;font-size:14px;color:var(--tinta-2)}
+.cifras b{display:block;font:800 30px/1.15 var(--titulo);letter-spacing:-.01em}
+.cifras .ahorro b{color:var(--ruta)}
+
+.reparto{margin-top:22px}
+.fila-t{display:grid;grid-template-columns:130px minmax(0,1fr) 210px;gap:14px;align-items:center;margin-bottom:10px;font-size:15px}
+@media (max-width:600px){.fila-t{grid-template-columns:100px minmax(0,1fr);}.fila-t .dato{grid-column:1/-1}}
+.pista{height:22px;background:var(--blanco);border:1px solid var(--linea);border-radius:4px;overflow:hidden}
+.pista div{height:100%}
+.dato{text-align:right;color:var(--tinta-2)}
+.nota{font-size:14px;color:var(--tinta-2)}
+
+.tabla{overflow-x:auto;background:var(--blanco);border:1px solid var(--linea);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--linea)}
+th{font-weight:600;color:var(--tinta-2);background:var(--blanco);position:sticky;top:0}
+th:first-child,td:first-child,.izq{text-align:left}
+tr.movido td{background:var(--movido)}
+.punto{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:0}
+.barra-acciones{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+footer{margin-top:60px;font-size:13px;color:var(--tinta-2)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Optimizador de envíos</h1>
+    <p class="sub">Sube el Excel con tus pedidos y tarifas. La app decide qué transportadora usar en cada pedido para pagar lo menos posible, incluido el descuento por volumen de Coordinadora.</p>
+  </header>
+
+  <section class="guia" aria-label="Cargar archivo">
+    <label class="etiqueta" id="zona">
+      <input type="file" id="archivo" accept=".xlsx,.xls" aria-label="Elegir archivo de Excel">
+      <div class="ruta" aria-hidden="true"><span>PEREIRA</span><span class="trazo"></span><span>COLOMBIA</span></div>
+      <strong>Arrastra aquí tu Excel</strong>
+      <span class="nota">o haz clic para elegirlo. Formato .xlsx con las hojas de la plantilla.</span>
+      <div class="archivo" id="nombre-archivo"></div>
+      <div class="barras" aria-hidden="true" id="codigo"></div>
+    </label>
+    <div>
+      <ol class="pasos">
+        <li><span>Descarga la plantilla y reemplaza los datos por los tuyos.<br><button id="plantilla" style="margin-top:8px">Descargar plantilla</button> <button id="demo" style="margin-top:8px">Probar con datos de ejemplo</button></span></li>
+        <li><span>Sube el archivo. El cálculo se hace en tu navegador: el Excel no se envía a ningún servidor.</span></li>
+        <li><span>Revisa la asignación y descarga el resultado en Excel.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="aviso oculto" id="aviso" role="alert"></div>
+
+  <section id="resultados" class="oculto" aria-live="polite">
+    <h2>Condiciones del descuento</h2>
+    <div class="ajustes">
+      <label>Volumen mínimo de Coordinadora (kg)<input type="number" id="vmin" min="0" step="10"></label>
+      <label>Descuento (%)<input type="number" id="desc" min="0" max="99" step="1"></label>
+      <label class="check"><input type="checkbox" id="plazos"> Respetar plazos de entrega</label>
+      <span class="nota">Vienen de la hoja Parametros. Cámbialos para probar escenarios.</span>
+    </div>
+
+    <div class="cifras">
+      <div><span>Costo óptimo</span><b id="k-opt"></b></div>
+      <div><span>Eligiendo la más barata en cada pedido</span><b id="k-sin"></b></div>
+      <div class="ahorro"><span>Ahorro del modelo</span><b id="k-ahorro"></b></div>
+      <div><span>Descuento Coordinadora</span><b id="k-desc"></b></div>
+    </div>
+    <div class="reparto" id="reparto"></div>
+    <p class="nota" id="kg-nota"></p>
+
+    <h2>Comparación de escenarios</h2>
+    <div class="tabla"><table id="t-esc"></table></div>
+
+    <h2>Asignación por pedido</h2>
+    <div class="barra-acciones">
+      <label class="nota"><input type="checkbox" id="solo-movidos"> Mostrar solo pedidos que el modelo pasó a Coordinadora para lograr el descuento</label>
+      <button class="primario" id="descargar">Descargar resultado en Excel</button>
+    </div>
+    <div class="tabla"><table id="t-asig"></table></div>
+    <p class="nota" style="margin-top:10px">Las filas resaltadas son pedidos que salen más caros por sí solos con Coordinadora, pero que el modelo le asigna para alcanzar el volumen y ganar el descuento en todos sus envíos.</p>
+  </section>
+
+  <footer>Modelo de programación binaria resuelto de forma exacta en el navegador.</footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Optimizador de envíos: lógica pura (sin interfaz). Funciona en el navegador y en Node.
+(function (root) {
+  "use strict";
+
+  var DESC = "coordinadora";
+  var HOJAS = {
+    Parametros: ["Parametro", "Valor"],
+    Transportadoras: ["Transportadora", "Factor_volumetrico_kg_m3", "Pct_manejo"],
+    Tarifas: ["Ciudad", "Transportadora", "Tarifa_kg", "Flete_minimo", "Dias_entrega", "Cobertura"],
+    Pedidos: ["Pedido", "Ciudad", "Peso_kg", "Largo_m", "Ancho_m", "Alto_m", "Valor_declarado", "Plazo_max_dias"]
+  };
+
+  function clave(s) {
+    return String(s == null ? "" : s).trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+  function num(v) {
+    if (typeof v === "number") return v;
+    if (v == null || v === "") return NaN;
+    return Number(String(v).replace(/\s/g, "").replace(",", "."));
+  }
+
+  // Lee las filas de cada hoja (objetos con los encabezados como claves) y valida columnas.
+  function leerDatos(hojas) {
+    var errores = [];
+    Object.keys(HOJAS).forEach(function (h) {
+      if (!hojas[h]) { errores.push("Falta la hoja \"" + h + "\"."); return; }
+      var cols = hojas[h].length ? Object.keys(hojas[h][0]) : [];
+      HOJAS[h].forEach(function (c) {
+        if (cols.indexOf(c) < 0) errores.push("En la hoja \"" + h + "\" falta la columna \"" + c + "\".");
+      });
+    });
+    if (errores.length) return { errores: errores };
+
+    var par = {};
+    hojas.Parametros.forEach(function (r) { par[String(r.Parametro).trim()] = num(r.Valor); });
+    var vmin = par.Volumen_minimo_Coordinadora_kg, desc = par.Descuento_Coordinadora;
+    if (!(vmin >= 0)) errores.push("Parametros: falta \"Volumen_minimo_Coordinadora_kg\" o no es un número.");
+    if (!(desc >= 0 && desc < 1)) errores.push("Parametros: \"Descuento_Coordinadora\" debe estar entre 0 y 1 (por ejemplo 0,20).");
+    var plazos = par.Respetar_plazos === undefined || isNaN(par.Respetar_plazos) ? true : par.Respetar_plazos === 1;
+
+    var transp = {};
+    hojas.Transportadoras.forEach(function (r) {
+      transp[clave(r.Transportadora)] = {
+        nombre: String(r.Transportadora).trim(),
+        factor: num(r.Factor_volumetrico_kg_m3) || 0,
+        manejo: num(r.Pct_manejo) || 0
+      };
+    });
+    if (!Object.keys(transp).some(function (k) { return k === DESC; }))
+      errores.push("La hoja Transportadoras debe incluir a Coordinadora.");
+
+    var tarifas = {};
+    hojas.Tarifas.forEach(function (r, i) {
+      var t = clave(r.Transportadora);
+      if (!transp[t]) { errores.push("Tarifas fila " + (i + 2) + ": la transportadora \"" + r.Transportadora + "\" no está en la hoja Transportadoras."); return; }
+      tarifas[clave(r.Ciudad) + "|" + t] = {
+        tarifa: num(r.Tarifa_kg), fmin: num(r.Flete_minimo) || 0,
+        dias: num(r.Dias_entrega), cobertura: num(r.Cobertura) === 1
+      };
+    });
+
+    var pedidos = [];
+    hojas.Pedidos.forEach(function (r, i) {
+      if (r.Pedido == null || r.Pedido === "") return;
+      var p = {
+        pedido: r.Pedido, ciudad: String(r.Ciudad == null ? "" : r.Ciudad).trim(),
+        tipo: r.Tipo == null ? "" : r.Tipo,
+        peso: num(r.Peso_kg), largo: num(r.Largo_m) || 0, ancho: num(r.Ancho_m) || 0, alto: num(r.Alto_m) || 0,
+        valor: num(r.Valor_declarado) || 0, plazo: num(r.Plazo_max_dias)
+      };
+      if (!(p.peso > 0)) errores.push("Pedidos fila " + (i + 2) + " (" + p.pedido + "): Peso_kg vacío o inválido.");
+      pedidos.push(p);
+    });
+    if (!pedidos.length) errores.push("La hoja Pedidos no tiene pedidos.");
+    return { errores: errores, vmin: vmin, desc: desc, plazos: plazos, transp: transp, tarifas: tarifas, pedidos: pedidos };
+  }
+
+  // Costo de cada pedido con cada transportadora (igual que la versión en Python).
+  function calcularOpciones(d) {
+    var nombres = Object.keys(d.transp);
+    return d.pedidos.map(function (p) {
+      var vol = p.largo * p.ancho * p.alto;
+      var ops = {};
+      nombres.forEach(function (t) {
+        var tf = d.tarifas[clave(p.ciudad) + "|" + t], tr = d.transp[t];
+        if (!tf || !(tf.tarifa > 0)) return;
+        var pf = Math.max(p.peso, vol * tr.factor);
+        var costo = Math.round(Math.max(pf * tf.tarifa, tf.fmin) + p.valor * tr.manejo);
+        var permitido = tf.cobertura && (!d.plazos || isNaN(p.plazo) || isNaN(tf.dias) || tf.dias <= p.plazo);
+        ops[t] = { costo: costo, pesoFact: pf, dias: tf.dias, permitido: permitido, cubre: tf.cobertura };
+      });
+      return { p: p, ops: ops };
+    });
+  }
+
+  // Resuelve el modelo binario de forma exacta: se evalúa z = 0 y z = 1 y se toma el mejor.
+  // Con z = 1 el problema es un "knapsack de cobertura" que se resuelve con programación dinámica.
+  function optimizar(d) {
+    var filas = calcularOpciones(d), n = filas.length, errores = [];
+    filas.forEach(function (f) {
+      if (!Object.keys(f.ops).some(function (t) { return f.ops[t].permitido; }))
+        errores.push("El pedido " + f.p.pedido + " (" + f.p.ciudad + ") no tiene ninguna transportadora con cobertura" + (d.plazos ? " y dentro del plazo." : "."));
+    });
+    if (errores.length) return { errores: errores };
+
+    function mejor(f, excluir) {
+      var b = null;
+      Object.keys(f.ops).forEach(function (t) {
+        var o = f.ops[t];
+        if (!o.permitido || t === excluir) return;
+        if (!b || o.costo < f.ops[b].costo) b = t;
+      });
+      return b;
+    }
+
+    // z = 0: cada pedido con la más barata a precio lleno
+    var sel0 = filas.map(function (f) { return mejor(f, null); });
+    var costo0 = sel0.reduce(function (a, t, i) { return a + filas[i].ops[t].costo; }, 0);
+    var sol = { z: 0, sel: sel0, costo: costo0 };
+
+    if (d.desc > 0) {
+      var sel1 = new Array(n), base = 0, kg0 = 0, items = [];
+      filas.forEach(function (f, i) {
+        var oC = f.ops[DESC], cOk = oC && oC.permitido, alt = mejor(f, DESC);
+        if (cOk && !alt) { sel1[i] = DESC; base += oC.costo * (1 - d.desc); kg0 += oC.pesoFact; }
+        else if (!cOk) { sel1[i] = alt; base += f.ops[alt].costo; }
+        else { sel1[i] = alt; base += f.ops[alt].costo; items.push({ i: i, kg: oC.pesoFact, delta: oC.costo * (1 - d.desc) - f.ops[alt].costo }); }
+      });
+      var falta = Math.max(0, d.vmin - kg0);
+      var totalItems = items.reduce(function (a, it) { return a + it.kg; }, 0);
+      if (totalItems + 1e-9 >= falta) {
+        // escala de kilos para la programación dinámica (hasta 0,01 kg si el tamaño lo permite)
+        var escala = 100;
+        while (escala > 0.01 && items.length * falta * escala > 4e6) escala /= 2;
+        var cap = Math.ceil(falta * escala - 1e-9);
+        var dp = new Float64Array(cap + 1).fill(Infinity); dp[0] = 0;
+        var tomo = [], desde = [];
+        items.forEach(function (it) {
+          var w = Math.floor(it.kg * escala + 1e-9), nd = dp.slice();
+          var tk = new Uint8Array(cap + 1), fr = new Int32Array(cap + 1);
+          for (var k = 0; k <= cap; k++) {
+            if (dp[k] === Infinity) continue;
+            var nk = Math.min(cap, k + w), v = dp[k] + it.delta;
+            if (v < nd[nk] - 1e-9) { nd[nk] = v; tk[nk] = 1; fr[nk] = k; }
+          }
+          tomo.push(tk); desde.push(fr); dp = nd;
+        });
+        if (dp[cap] < Infinity) {
+          var costo1 = base + dp[cap];
+          var k = cap;
+          for (var j = items.length - 1; j >= 0; j--) {
+            if (tomo[j][k]) { sel1[items[j].i] = DESC; k = desde[j][k]; }
+          }
+          // Ajuste final: pedidos que convienen por Coordinadora aunque ya se cumplió el mínimo
+          items.forEach(function (it) {
+            if (sel1[it.i] !== DESC && it.delta < 0) { sel1[it.i] = DESC; costo1 += it.delta; }
+          });
+          if (costo1 < costo0 - 1e-6) sol = { z: 1, sel: sel1, costo: costo1 };
+        }
+      }
+    }
+
+    // Construir resultados
+    var asignacion = filas.map(function (f, i) {
+      var t = sol.sel[i], o = f.ops[t], descAplic = (sol.z && t === DESC) ? o.costo * d.desc : 0;
+      return {
+        Pedido: f.p.pedido, Ciudad: f.p.ciudad, Tipo: f.p.tipo, Peso_kg: f.p.peso,
+        Peso_facturable: Math.round(o.pesoFact * 10) / 10, Valor_declarado: f.p.valor, Plazo_max_dias: f.p.plazo,
+        Transportadora: d.transp[t].nombre, Dias_entrega: o.dias, Costo_tarifa: o.costo,
+        Descuento: Math.round(descAplic), Costo_final: Math.round(o.costo - descAplic),
+        Mas_barata_individual: d.transp[sel0[i]].nombre, Costo_mas_barata: f.ops[sel0[i]].costo,
+        Movido: t !== sel0[i]
+      };
+    });
+    var resumen = Object.keys(d.transp).map(function (t) {
+      var r = asignacion.filter(function (a) { return clave(a.Transportadora) === t; });
+      return {
+        Transportadora: d.transp[t].nombre, Pedidos: r.length,
+        Kg_facturables: Math.round(r.reduce(function (a, x) { return a + x.Peso_facturable; }, 0)),
+        Costo_tarifa: r.reduce(function (a, x) { return a + x.Costo_tarifa; }, 0),
+        Descuento: r.reduce(function (a, x) { return a + x.Descuento; }, 0),
+        Costo_final: r.reduce(function (a, x) { return a + x.Costo_final; }, 0)
+      };
+    });
+    var escenarios = [
+      { Escenario: "Óptimo (modelo con descuento)", Costo_total: Math.round(sol.costo) },
+      { Escenario: "Más barata por pedido, sin buscar descuento", Costo_total: Math.round(costo0) }
+    ];
+    Object.keys(d.transp).forEach(function (t) {
+      var ok = filas.every(function (f) { return f.ops[t] && f.ops[t].cubre; });
+      if (!ok) return;
+      var tot = filas.reduce(function (a, f) { return a + f.ops[t].costo; }, 0);
+      var kg = filas.reduce(function (a, f) { return a + f.ops[t].pesoFact; }, 0);
+      if (t === DESC && kg >= d.vmin) tot *= (1 - d.desc);
+      escenarios.push({ Escenario: "Todo con " + d.transp[t].nombre, Costo_total: Math.round(tot) });
+    });
+    escenarios.forEach(function (e) { e.Diferencia_vs_optimo = e.Costo_total - Math.round(sol.costo); });
+
+    var kgC = asignacion.filter(function (a) { return clave(a.Transportadora) === DESC; })
+      .reduce(function (a, x) { return a + x.Peso_facturable; }, 0);
+    return {
+      errores: [], descuentoActivo: sol.z === 1, costoOptimo: Math.round(sol.costo), costoSinDescuento: Math.round(costo0),
+      kgCoordinadora: kgC, vmin: d.vmin, desc: d.desc, asignacion: asignacion, resumen: resumen, escenarios: escenarios
+    };
+  }
+
+  var api = { leerDatos: leerDatos, optimizar: optimizar, HOJAS: HOJAS };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.Optimizador = api;
+})(this);
+
+</script>
+<script>var EJEMPLO={"Parametros":[{"Parametro":"Volumen_minimo_Coordinadora_kg","Valor":700.0,"Nota":"Kilos facturables al mes con Coordinadora para activar el descuento (ficticio)"},{"Parametro":"Descuento_Coordinadora","Valor":0.2,"Nota":"Se aplica a todo lo enviado con Coordinadora si se alcanza el volumen"},{"Parametro":"Respetar_plazos","Valor":1.0,"Nota":"1 = el tiempo de entrega no puede superar el plazo del pedido; 0 = ignorar"}],"Transportadoras":[{"Transportadora":"Transprensa","Factor_volumetrico_kg_m3":400,"Pct_manejo":0.01},{"Transportadora":"Envía","Factor_volumetrico_kg_m3":400,"Pct_manejo":0.008},{"Transportadora":"Coordinadora","Factor_volumetrico_kg_m3":333,"Pct_manejo":0.01}],"Tarifas":[{"Ciudad":"Pereira","Transportadora":"Transprensa","Tarifa_kg":1720,"Flete_minimo":12600,"Dias_entrega":2,"Cobertura":1},{"Ciudad":"Pereira","Transportadora":"Envía","Tarifa_kg":1760,"Flete_minimo":10800,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Pereira","Transportadora":"Coordinadora","Tarifa_kg":2390,"Flete_minimo":13500,"Dias_entrega":2,"Cobertura":1},{"Ciudad":"Manizales","Transportadora":"Transprensa","Tarifa_kg":1940,"Flete_minimo":14000,"Dias_entrega":2,"Cobertura":1},{"Ciudad":"Manizales","Transportadora":"Envía","Tarifa_kg":2310,"Flete_minimo":12000,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Manizales","Transportadora":"Coordinadora","Tarifa_kg":3120,"Flete_minimo":15000,"Dias_entrega":2,"Cobertura":1},{"Ciudad":"Armenia","Transportadora":"Transprensa","Tarifa_kg":1940,"Flete_minimo":14000,"Dias_entrega":2,"Cobertura":1},{"Ciudad":"Armenia","Transportadora":"Envía","Tarifa_kg":2430,"Flete_minimo":12000,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Armenia","Transportadora":"Coordinadora","Tarifa_kg":2880,"Flete_minimo":15000,"Dias_entrega":2,"Cobertura":1},{"Ciudad":"Cali","Transportadora":"Transprensa","Tarifa_kg":2580,"Flete_minimo":15900,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Cali","Transportadora":"Envía","Tarifa_kg":3320,"Flete_minimo":13600,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Cali","Transportadora":"Coordinadora","Tarifa_kg":3830,"Flete_minimo":17000,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Medellín","Transportadora":"Transprensa","Tarifa_kg":3310,"Flete_minimo":16300,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Medellín","Transportadora":"Envía","Tarifa_kg":2890,"Flete_minimo":14000,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Medellín","Transportadora":"Coordinadora","Tarifa_kg":4090,"Flete_minimo":17500,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Bogotá","Transportadora":"Transprensa","Tarifa_kg":3490,"Flete_minimo":17300,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Bogotá","Transportadora":"Envía","Tarifa_kg":3230,"Flete_minimo":14800,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Bogotá","Transportadora":"Coordinadora","Tarifa_kg":4860,"Flete_minimo":18500,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Ibagué","Transportadora":"Transprensa","Tarifa_kg":2420,"Flete_minimo":15400,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Ibagué","Transportadora":"Envía","Tarifa_kg":3270,"Flete_minimo":13200,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Ibagué","Transportadora":"Coordinadora","Tarifa_kg":3640,"Flete_minimo":16500,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Bucaramanga","Transportadora":"Transprensa","Tarifa_kg":4320,"Flete_minimo":19100,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Bucaramanga","Transportadora":"Envía","Tarifa_kg":3910,"Flete_minimo":16400,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Bucaramanga","Transportadora":"Coordinadora","Tarifa_kg":6080,"Flete_minimo":20500,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Barranquilla","Transportadora":"Transprensa","Tarifa_kg":5910,"Flete_minimo":21500,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Barranquilla","Transportadora":"Envía","Tarifa_kg":5870,"Flete_minimo":18400,"Dias_entrega":6,"Cobertura":1},{"Ciudad":"Barranquilla","Transportadora":"Coordinadora","Tarifa_kg":5950,"Flete_minimo":23000,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Cartagena","Transportadora":"Transprensa","Tarifa_kg":5410,"Flete_minimo":21500,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Cartagena","Transportadora":"Envía","Tarifa_kg":6250,"Flete_minimo":18400,"Dias_entrega":6,"Cobertura":1},{"Ciudad":"Cartagena","Transportadora":"Coordinadora","Tarifa_kg":5950,"Flete_minimo":23000,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Cúcuta","Transportadora":"Transprensa","Tarifa_kg":4730,"Flete_minimo":20500,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Cúcuta","Transportadora":"Envía","Tarifa_kg":4420,"Flete_minimo":17600,"Dias_entrega":6,"Cobertura":1},{"Ciudad":"Cúcuta","Transportadora":"Coordinadora","Tarifa_kg":7120,"Flete_minimo":22000,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Neiva","Transportadora":"Transprensa","Tarifa_kg":3070,"Flete_minimo":17300,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Neiva","Transportadora":"Envía","Tarifa_kg":3800,"Flete_minimo":14800,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Neiva","Transportadora":"Coordinadora","Tarifa_kg":4630,"Flete_minimo":18500,"Dias_entrega":3,"Cobertura":1},{"Ciudad":"Pasto","Transportadora":"Transprensa","Tarifa_kg":4420,"Flete_minimo":19600,"Dias_entrega":4,"Cobertura":0},{"Ciudad":"Pasto","Transportadora":"Envía","Tarifa_kg":4810,"Flete_minimo":16800,"Dias_entrega":5,"Cobertura":0},{"Ciudad":"Pasto","Transportadora":"Coordinadora","Tarifa_kg":5100,"Flete_minimo":21000,"Dias_entrega":4,"Cobertura":1},{"Ciudad":"Montería","Transportadora":"Transprensa","Tarifa_kg":5170,"Flete_minimo":20100,"Dias_entrega":4,"Cobertura":0},{"Ciudad":"Montería","Transportadora":"Envía","Tarifa_kg":4900,"Flete_minimo":17200,"Dias_entrega":5,"Cobertura":1},{"Ciudad":"Montería","Transportadora":"Coordinadora","Tarifa_kg":5310,"Flete_minimo":21500,"Dias_entrega":4,"Cobertura":1}],"Pedidos":[{"Pedido":630000,"Ciudad":"Bogotá","Tipo":"Vertical","Peso_kg":4.3,"Largo_m":1.36,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":713000,"Plazo_max_dias":3},{"Pedido":630001,"Ciudad":"Cali","Tipo":"Vertical","Peso_kg":7.8,"Largo_m":1.88,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":454000,"Plazo_max_dias":6},{"Pedido":630002,"Ciudad":"Medellín","Tipo":"Panel","Peso_kg":17.1,"Largo_m":2.69,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":942000,"Plazo_max_dias":5},{"Pedido":630003,"Ciudad":"Bogotá","Tipo":"Vertical","Peso_kg":5.4,"Largo_m":1.92,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":646000,"Plazo_max_dias":3},{"Pedido":630004,"Ciudad":"Bogotá","Tipo":"Enrollable","Peso_kg":5.3,"Largo_m":1.82,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":1143000,"Plazo_max_dias":6},{"Pedido":630005,"Ciudad":"Pasto","Tipo":"Enrollable","Peso_kg":4.6,"Largo_m":2.2,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":1021000,"Plazo_max_dias":6},{"Pedido":630006,"Ciudad":"Bucaramanga","Tipo":"Panel","Peso_kg":14.3,"Largo_m":2.49,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1239000,"Plazo_max_dias":4},{"Pedido":630007,"Ciudad":"Bogotá","Tipo":"Panel","Peso_kg":15.3,"Largo_m":1.6,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1582000,"Plazo_max_dias":6},{"Pedido":630008,"Ciudad":"Bucaramanga","Tipo":"Panel","Peso_kg":18.4,"Largo_m":2.09,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1917000,"Plazo_max_dias":6},{"Pedido":630009,"Ciudad":"Bogotá","Tipo":"Sheer","Peso_kg":9.9,"Largo_m":1.83,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":874000,"Plazo_max_dias":4},{"Pedido":630010,"Ciudad":"Medellín","Tipo":"Motor","Peso_kg":5.5,"Largo_m":0.82,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":1509000,"Plazo_max_dias":5},{"Pedido":630011,"Ciudad":"Barranquilla","Tipo":"Sheer","Peso_kg":13.6,"Largo_m":1.92,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":1040000,"Plazo_max_dias":7},{"Pedido":630012,"Ciudad":"Pasto","Tipo":"Motor","Peso_kg":2.6,"Largo_m":0.84,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":1118000,"Plazo_max_dias":5},{"Pedido":630013,"Ciudad":"Bogotá","Tipo":"Enrollable","Peso_kg":8.7,"Largo_m":1.67,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":353000,"Plazo_max_dias":6},{"Pedido":630014,"Ciudad":"Medellín","Tipo":"Vertical","Peso_kg":7.0,"Largo_m":2.72,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":699000,"Plazo_max_dias":3},{"Pedido":630015,"Ciudad":"Cúcuta","Tipo":"Motor","Peso_kg":5.1,"Largo_m":0.97,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":2136000,"Plazo_max_dias":8},{"Pedido":630016,"Ciudad":"Medellín","Tipo":"Motor","Peso_kg":2.4,"Largo_m":0.93,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":812000,"Plazo_max_dias":3},{"Pedido":630017,"Ciudad":"Bogotá","Tipo":"Sheer","Peso_kg":6.1,"Largo_m":2.4,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":633000,"Plazo_max_dias":4},{"Pedido":630018,"Ciudad":"Armenia","Tipo":"Vertical","Peso_kg":5.5,"Largo_m":1.24,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":818000,"Plazo_max_dias":5},{"Pedido":630019,"Ciudad":"Ibagué","Tipo":"Sheer","Peso_kg":14.6,"Largo_m":2.4,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":1116000,"Plazo_max_dias":3},{"Pedido":630020,"Ciudad":"Montería","Tipo":"Motor","Peso_kg":3.9,"Largo_m":0.9,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":855000,"Plazo_max_dias":4},{"Pedido":630021,"Ciudad":"Bucaramanga","Tipo":"Panel","Peso_kg":12.7,"Largo_m":2.68,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1323000,"Plazo_max_dias":5},{"Pedido":630022,"Ciudad":"Medellín","Tipo":"Vertical","Peso_kg":7.8,"Largo_m":2.66,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":743000,"Plazo_max_dias":5},{"Pedido":630023,"Ciudad":"Bucaramanga","Tipo":"Enrollable","Peso_kg":6.1,"Largo_m":1.86,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":492000,"Plazo_max_dias":5},{"Pedido":630024,"Ciudad":"Bogotá","Tipo":"Vertical","Peso_kg":6.5,"Largo_m":2.22,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":649000,"Plazo_max_dias":4},{"Pedido":630025,"Ciudad":"Barranquilla","Tipo":"Sheer","Peso_kg":12.4,"Largo_m":1.84,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":1173000,"Plazo_max_dias":7},{"Pedido":630026,"Ciudad":"Montería","Tipo":"Enrollable","Peso_kg":10.3,"Largo_m":2.05,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":515000,"Plazo_max_dias":6},{"Pedido":630027,"Ciudad":"Barranquilla","Tipo":"Motor","Peso_kg":4.9,"Largo_m":0.87,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":2454000,"Plazo_max_dias":5},{"Pedido":630028,"Ciudad":"Armenia","Tipo":"Sheer","Peso_kg":9.7,"Largo_m":2.01,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":1127000,"Plazo_max_dias":2},{"Pedido":630029,"Ciudad":"Cúcuta","Tipo":"Motor","Peso_kg":3.4,"Largo_m":0.93,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":2202000,"Plazo_max_dias":5},{"Pedido":630030,"Ciudad":"Barranquilla","Tipo":"Motor","Peso_kg":5.0,"Largo_m":0.9,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":1021000,"Plazo_max_dias":7},{"Pedido":630031,"Ciudad":"Barranquilla","Tipo":"Enrollable","Peso_kg":11.8,"Largo_m":1.91,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":691000,"Plazo_max_dias":5},{"Pedido":630032,"Ciudad":"Cali","Tipo":"Sheer","Peso_kg":6.3,"Largo_m":1.73,"Ancho_m":0.18,"Alto_m":0.18,"Valor_declarado":1676000,"Plazo_max_dias":4},{"Pedido":630033,"Ciudad":"Cartagena","Tipo":"Vertical","Peso_kg":9.9,"Largo_m":2.25,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":478000,"Plazo_max_dias":6},{"Pedido":630034,"Ciudad":"Pereira","Tipo":"Enrollable","Peso_kg":11.8,"Largo_m":2.37,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":798000,"Plazo_max_dias":3},{"Pedido":630035,"Ciudad":"Montería","Tipo":"Motor","Peso_kg":2.8,"Largo_m":0.97,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":750000,"Plazo_max_dias":5},{"Pedido":630036,"Ciudad":"Bogotá","Tipo":"Panel","Peso_kg":16.7,"Largo_m":2.05,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1362000,"Plazo_max_dias":4},{"Pedido":630037,"Ciudad":"Cúcuta","Tipo":"Enrollable","Peso_kg":6.8,"Largo_m":2.02,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":846000,"Plazo_max_dias":8},{"Pedido":630038,"Ciudad":"Armenia","Tipo":"Vertical","Peso_kg":4.1,"Largo_m":2.02,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":817000,"Plazo_max_dias":3},{"Pedido":630039,"Ciudad":"Pereira","Tipo":"Vertical","Peso_kg":8.6,"Largo_m":1.48,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":558000,"Plazo_max_dias":2},{"Pedido":630040,"Ciudad":"Manizales","Tipo":"Vertical","Peso_kg":7.8,"Largo_m":2.05,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":564000,"Plazo_max_dias":2},{"Pedido":630041,"Ciudad":"Manizales","Tipo":"Vertical","Peso_kg":4.3,"Largo_m":1.27,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":314000,"Plazo_max_dias":5},{"Pedido":630042,"Ciudad":"Pereira","Tipo":"Vertical","Peso_kg":9.3,"Largo_m":1.3,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":462000,"Plazo_max_dias":3},{"Pedido":630043,"Ciudad":"Bogotá","Tipo":"Panel","Peso_kg":13.5,"Largo_m":2.31,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1918000,"Plazo_max_dias":5},{"Pedido":630044,"Ciudad":"Cúcuta","Tipo":"Vertical","Peso_kg":4.4,"Largo_m":1.92,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":521000,"Plazo_max_dias":8},{"Pedido":630045,"Ciudad":"Medellín","Tipo":"Motor","Peso_kg":4.7,"Largo_m":0.89,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":1083000,"Plazo_max_dias":5},{"Pedido":630046,"Ciudad":"Cúcuta","Tipo":"Enrollable","Peso_kg":5.2,"Largo_m":2.49,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":911000,"Plazo_max_dias":6},{"Pedido":630047,"Ciudad":"Cúcuta","Tipo":"Panel","Peso_kg":19.5,"Largo_m":1.87,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1934000,"Plazo_max_dias":8},{"Pedido":630048,"Ciudad":"Cali","Tipo":"Motor","Peso_kg":4.7,"Largo_m":0.84,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":1971000,"Plazo_max_dias":6},{"Pedido":630049,"Ciudad":"Medellín","Tipo":"Panel","Peso_kg":11.0,"Largo_m":1.66,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1112000,"Plazo_max_dias":5},{"Pedido":630050,"Ciudad":"Bogotá","Tipo":"Vertical","Peso_kg":7.9,"Largo_m":1.81,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":586000,"Plazo_max_dias":5},{"Pedido":630051,"Ciudad":"Pasto","Tipo":"Vertical","Peso_kg":3.8,"Largo_m":2.67,"Ancho_m":0.15,"Alto_m":0.12,"Valor_declarado":399000,"Plazo_max_dias":4},{"Pedido":630052,"Ciudad":"Cali","Tipo":"Enrollable","Peso_kg":4.3,"Largo_m":2.6,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":580000,"Plazo_max_dias":4},{"Pedido":630053,"Ciudad":"Cartagena","Tipo":"Motor","Peso_kg":4.7,"Largo_m":0.99,"Ancho_m":0.25,"Alto_m":0.2,"Valor_declarado":1431000,"Plazo_max_dias":8},{"Pedido":630054,"Ciudad":"Manizales","Tipo":"Panel","Peso_kg":6.8,"Largo_m":2.67,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1195000,"Plazo_max_dias":2},{"Pedido":630055,"Ciudad":"Neiva","Tipo":"Panel","Peso_kg":14.9,"Largo_m":2.86,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":717000,"Plazo_max_dias":4},{"Pedido":630056,"Ciudad":"Cali","Tipo":"Enrollable","Peso_kg":5.0,"Largo_m":1.22,"Ancho_m":0.15,"Alto_m":0.15,"Valor_declarado":1195000,"Plazo_max_dias":6},{"Pedido":630057,"Ciudad":"Ibagué","Tipo":"Panel","Peso_kg":6.6,"Largo_m":2.71,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1913000,"Plazo_max_dias":4},{"Pedido":630058,"Ciudad":"Manizales","Tipo":"Panel","Peso_kg":8.8,"Largo_m":2.03,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1027000,"Plazo_max_dias":3},{"Pedido":630059,"Ciudad":"Bogotá","Tipo":"Panel","Peso_kg":15.4,"Largo_m":1.96,"Ancho_m":0.2,"Alto_m":0.15,"Valor_declarado":1725000,"Plazo_max_dias":5}]};</script>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var COLORES = {transprensa:"var(--c-transprensa)", "envía":"var(--c-envia)", envia:"var(--c-envia)", coordinadora:"var(--c-coordinadora)"};
+  var datos = null, resultado = null;
+  var peso = new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0});
+  var n0 = new Intl.NumberFormat("es-CO",{maximumFractionDigits:0});
+  var n1 = new Intl.NumberFormat("es-CO",{maximumFractionDigits:1});
+  function color(t){ return COLORES[String(t).toLowerCase()] || "var(--tinta-2)"; }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  var cod = ""; for (var i=0;i<46;i++){ cod += '<i style="width:'+[1,2,3,1,4,2][i%6]+'px"></i>'; } $("codigo").innerHTML = cod;
+
+  function mostrarErrores(lista){
+    var a = $("aviso");
+    if (!lista || !lista.length){ a.classList.add("oculto"); return; }
+    a.innerHTML = "<b>No se pudo optimizar. Corrige esto en el Excel y vuelve a subirlo:</b><ul>" +
+      lista.slice(0,12).map(function(e){ return "<li>"+esc(e)+"</li>"; }).join("") +
+      (lista.length>12 ? "<li>y "+(lista.length-12)+" más.</li>" : "") + "</ul>";
+    a.classList.remove("oculto");
+  }
+
+  function cargar(file){
+    if (!file) return;
+    if (!/\.xlsx?$/i.test(file.name)){ mostrarErrores(["El archivo debe ser de Excel (.xlsx)."]); return; }
+    if (typeof XLSX === "undefined"){ mostrarErrores(["No cargó la librería para leer Excel. Revisa tu conexión a internet y recarga la página."]); return; }
+    $("nombre-archivo").textContent = file.name;
+    var lector = new FileReader();
+    lector.onload = function(e){
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), {type:"array"});
+        var hojas = {};
+        wb.SheetNames.forEach(function(n){ hojas[n.trim()] = XLSX.utils.sheet_to_json(wb.Sheets[n], {defval:null}); });
+        procesar(hojas);
+      } catch(err){ mostrarErrores(["No se pudo leer el archivo: "+err.message]); }
+    };
+    lector.readAsArrayBuffer(file);
+  }
+
+  function procesar(hojas){
+    datos = Optimizador.leerDatos(hojas);
+    if (datos.errores.length){ mostrarErrores(datos.errores); $("resultados").classList.add("oculto"); return; }
+    $("vmin").value = datos.vmin; $("desc").value = Math.round(datos.desc*1000)/10; $("plazos").checked = datos.plazos;
+    calcular();
+    $("resultados").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+  }
+
+  function plantilla(){
+    if (typeof XLSX === "undefined"){ mostrarErrores(["No cargó la librería para Excel. Revisa tu conexión y recarga la página."]); return; }
+    var wb = XLSX.utils.book_new();
+    ["Parametros","Transportadoras","Tarifas","Pedidos"].forEach(function(n){ XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(EJEMPLO[n]), n); });
+    XLSX.writeFile(wb, "plantilla_envios.xlsx");
+  }
+
+  function calcular(){
+    if (!datos) return;
+    var v = parseFloat($("vmin").value), d = parseFloat($("desc").value);
+    if (!(v >= 0) || !(d >= 0 && d < 100)){ mostrarErrores(["Revisa el volumen mínimo (0 o más) y el descuento (entre 0 y 99%)."]); return; }
+    datos.vmin = v; datos.desc = d/100; datos.plazos = $("plazos").checked;
+    resultado = Optimizador.optimizar(datos);
+    if (resultado.errores.length){ mostrarErrores(resultado.errores); $("resultados").classList.add("oculto"); return; }
+    mostrarErrores([]); pintar(); $("resultados").classList.remove("oculto");
+  }
+
+  function pintar(){
+    var r = resultado;
+    $("k-opt").textContent = peso.format(r.costoOptimo);
+    $("k-sin").textContent = peso.format(r.costoSinDescuento);
+    $("k-ahorro").textContent = peso.format(r.costoSinDescuento - r.costoOptimo);
+    $("k-desc").textContent = r.descuentoActivo ? "Activado" : "No conviene";
+    var max = Math.max.apply(null, r.resumen.map(function(x){ return x.Costo_final; }).concat([1]));
+    $("reparto").innerHTML = r.resumen.map(function(x){
+      return '<div class="fila-t"><span><span class="punto" style="background:'+color(x.Transportadora)+'"></span>'+esc(x.Transportadora)+'</span>'+
+        '<div class="pista"><div style="width:'+(x.Costo_final/max*100)+'%;background:'+color(x.Transportadora)+'"></div></div>'+
+        '<span class="dato">'+x.Pedidos+' pedidos, '+peso.format(x.Costo_final)+'</span></div>';
+    }).join("");
+    $("kg-nota").textContent = "Kilos facturables con Coordinadora: " + n0.format(r.kgCoordinadora) + " de " + n0.format(r.vmin) + " requeridos." +
+      (r.descuentoActivo ? "" : " Con estas tarifas no compensa alcanzar el volumen.");
+
+    $("t-esc").innerHTML = "<tr><th>Escenario</th><th>Costo total</th><th>Diferencia frente al óptimo</th></tr>" +
+      r.escenarios.map(function(e){ return "<tr><td>"+esc(e.Escenario)+"</td><td>"+peso.format(e.Costo_total)+"</td><td>"+(e.Diferencia_vs_optimo? "+"+peso.format(e.Diferencia_vs_optimo) : "")+"</td></tr>"; }).join("");
+    pintarAsignacion();
+  }
+
+  function pintarAsignacion(){
+    var solo = $("solo-movidos").checked;
+    var filas = resultado.asignacion.filter(function(a){ return !solo || a.Movido; });
+    $("t-asig").innerHTML = "<tr><th>Pedido</th><th class='izq'>Ciudad</th><th>Kg facturables</th><th class='izq'>Transportadora</th><th>Días</th><th>Tarifa</th><th>Descuento</th><th>Costo final</th><th class='izq'>Más barata por sí sola</th></tr>" +
+      (filas.length ? filas.map(function(a){
+        return "<tr"+(a.Movido?" class='movido'":"")+"><td>"+esc(a.Pedido)+"</td><td class='izq'>"+esc(a.Ciudad)+"</td><td>"+n1.format(a.Peso_facturable)+"</td>"+
+          "<td class='izq'><span class='punto' style='background:"+color(a.Transportadora)+"'></span>"+esc(a.Transportadora)+"</td><td>"+esc(a.Dias_entrega)+"</td>"+
+          "<td>"+peso.format(a.Costo_tarifa)+"</td><td>"+(a.Descuento? "−"+peso.format(a.Descuento):"")+"</td><td><b>"+peso.format(a.Costo_final)+"</b></td>"+
+          "<td class='izq'>"+esc(a.Mas_barata_individual)+" "+peso.format(a.Costo_mas_barata)+"</td></tr>";
+      }).join("") : "<tr><td colspan='9' class='izq'>Ningún pedido se movió: cada uno va con su transportadora más barata.</td></tr>");
+  }
+
+  function descargar(){
+    if (!resultado) return;
+    var wb = XLSX.utils.book_new();
+    var asig = resultado.asignacion.map(function(a){ var o = Object.assign({}, a); o.Movido = a.Movido ? "Sí" : "No"; return o; });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resultado.escenarios), "Escenarios");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resultado.resumen), "Resumen");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(asig), "Asignacion");
+    var hoy = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, "resultado_envios_"+hoy+".xlsx");
+  }
+
+  var zona = $("zona");
+  $("archivo").addEventListener("change", function(e){ cargar(e.target.files[0]); e.target.value = ""; });
+  ["dragenter","dragover"].forEach(function(ev){ zona.addEventListener(ev, function(e){ e.preventDefault(); zona.classList.add("sobre"); }); });
+  ["dragleave","drop"].forEach(function(ev){ zona.addEventListener(ev, function(e){ e.preventDefault(); zona.classList.remove("sobre"); }); });
+  zona.addEventListener("drop", function(e){ cargar(e.dataTransfer.files[0]); });
+  ["vmin","desc"].forEach(function(id){ $(id).addEventListener("input", calcular); });
+  $("plazos").addEventListener("change", calcular);
+  $("solo-movidos").addEventListener("change", pintarAsignacion);
+  $("descargar").addEventListener("click", descargar);
+  $("plantilla").addEventListener("click", function(e){ e.preventDefault(); plantilla(); });
+  $("demo").addEventListener("click", function(e){ e.preventDefault(); $("nombre-archivo").textContent = "Datos de ejemplo (60 pedidos ficticios)"; procesar(JSON.parse(JSON.stringify(EJEMPLO))); });
+})();
+</script>
+</body>
+</html>
